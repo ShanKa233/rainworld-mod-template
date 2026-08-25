@@ -1,0 +1,48 @@
+# 编译输出
+bin/
+obj/
+
+# Visual Studio 文件
+.vs/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+*.vspscc
+*.vssscc
+
+# 编译后的 DLL(保留 mod 目录结构,modinfo.json/缩略图等照常入库)
+mod/**/plugins/*.dll
+
+# NuGet 包
+packages/
+*.nupkg
+*.snupkg
+
+# 引用的外部库
+lib/
+libs/
+references/
+
+# Codex 本地工具
+.agents/
+
+# 日志与临时文件
+*.log
+[Tt]emp/
+[Tt]mp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 个人设置和敏感信息
+*.config.user
+**/appsettings.*.json
+**/secrets.json

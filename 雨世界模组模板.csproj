@@ -1,0 +1,96 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>8.0</LangVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <!-- 改成你的插件名,建议用英文(与 BepInEx 的 Plugin.GUID 对应) -->
+    <AssemblyName>YourModName</AssemblyName>
+    <!-- 与 src/Plugin.cs 的 namespace 保持一致 -->
+    <RootNamespace>YourModNamespace</RootNamespace>
+  </PropertyGroup>
+
+  <!-- 路径配置:设置环境变量 RW_PATH 指向 Rain World 安装目录即可跨平台使用 -->
+  <PropertyGroup>
+    <RWPath Condition="'$(RWPath)' == ''">$(RW_PATH)</RWPath>
+    <WorkshopPath Condition="'$(WorkshopPath)' == ''">$(RW_WORKSHOP_PATH)</WorkshopPath>
+  </PropertyGroup>
+
+  <!--
+    版本号唯一来源:发版时只改 ModVersion 一处,
+    构建会自动同步到 Plugin.cs 引用的常量(ModVersionInfo.Version)和 mod/modinfo.json。
+  -->
+  <PropertyGroup>
+    <ModVersion>0.0.1</ModVersion>
+  </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="if not exist &quot;$(MSBuildProjectDirectory)\mod\newest\plugins&quot; mkdir &quot;$(MSBuildProjectDirectory)\mod\newest\plugins&quot;" />
+    <Exec Command="copy /Y &quot;$(TargetPath)&quot; &quot;$(MSBuildProjectDirectory)\mod\newest\plugins\&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <!-- Rain World 核心引用 -->
+    <Reference Include="$(RWPath)/RainWorld_Data/Managed/*.dll" />
+    <Reference Include="$(RWPath)/BepInEx/plugins/*.dll" />
+    <Reference Include="$(RWPath)/BepInEx/core/*.dll" />
+    <Reference Include="$(RWPath)/BepInEx/utils/*.dll" Condition="Exists('$(RWPath)/BepInEx/utils/')" />
+  </ItemGroup>
+
+  <!-- 编译前生成版本常量文件(位于 obj 下,不进 git),供 Plugin.cs 引用 -->
+  <Target Name="GenerateModVersionFile" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <ModVersionLines Include="// 自动生成,勿手改。发版时只修改 csproj 的 ModVersion 属性" />
+      <ModVersionLines Include="namespace $(RootNamespace)" />
+      <ModVersionLines Include="{" />
+      <ModVersionLines Include="    internal static class ModVersionInfo" />
+      <ModVersionLines Include="    {" />
+      <ModVersionLines Include="        public const string Version = &quot;$(ModVersion)&quot;%3B" />
+      <ModVersionLines Include="    }" />
+      <ModVersionLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)ModVersion.g.cs" Lines="@(ModVersionLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)ModVersion.g.cs" Link="Generated/ModVersion.g.cs" />
+    </ItemGroup>
+  </Target>
+
+  <!-- 内联任务:把 JSON 里的 version 字段替换为指定值。
+       用 RoslynCodeTaskFactory 而非 CodeTaskFactory,dotnet msbuild(跨平台)不支持后者 -->
+  <UsingTask TaskName="SyncJsonVersion" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <FilePath ParameterType="System.String" Required="true" />
+      <NewVersion ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Code Type="Fragment" Language="cs">
+      <![CDATA[
+        byte[] bytes = System.IO.File.ReadAllBytes(FilePath);
+        bool hadBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+        string text = System.IO.File.ReadAllText(FilePath);
+        string updated = Regex.Replace(
+            text,
+            "(\"version\"\\s*:\\s*)\"[^\"]*\"",
+            "${1}\"" + NewVersion + "\"",
+            RegexOptions.IgnoreCase);
+        if (updated != text)
+        {
+            System.IO.File.WriteAllText(FilePath, updated, new System.Text.UTF8Encoding(hadBom));
+            Log.LogMessage(MessageImportance.High,
+                "已同步 " + FilePath + " 的 version 为 " + NewVersion);
+        }
+      ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <!-- 构建后自动把 ModVersion 写入 mod 元数据 JSON -->
+  <Target Name="SyncModVersionJson" AfterTargets="Build">
+    <SyncJsonVersion FilePath="mod/modinfo.json" NewVersion="$(ModVersion)" />
+    <SyncJsonVersion FilePath="mod/workshopdata.json" NewVersion="$(ModVersion)" Condition="Exists('mod/workshopdata.json')" />
+  </Target>
+
+</Project>
