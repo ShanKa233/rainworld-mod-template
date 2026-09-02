@@ -26,9 +26,10 @@
     <ModVersion>0.0.1</ModVersion>
   </PropertyGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="if not exist &quot;$(MSBuildProjectDirectory)\mod\newest\plugins&quot; mkdir &quot;$(MSBuildProjectDirectory)\mod\newest\plugins&quot;" />
-    <Exec Command="copy /Y &quot;$(TargetPath)&quot; &quot;$(MSBuildProjectDirectory)\mod\newest\plugins\&quot;" />
+  <!-- Cross-platform post-build: copy the built DLL into the mod folder -->
+  <Target Name="PostBuild" AfterTargets="Build">
+    <MakeDir Directories="$(MSBuildProjectDirectory)/mod/newest/plugins" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildProjectDirectory)/mod/newest/plugins" />
   </Target>
 
   <ItemGroup>
